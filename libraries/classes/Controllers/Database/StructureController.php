@@ -1054,6 +1054,12 @@ class StructureController extends AbstractController
             case 'SYSTEM VIEW':
                 // possibly a view, do nothing
                 break;
+            case 'Mroonga':
+                [$currentTable, $formattedSize, $unit, $sumSize] = $this->getValuesForMroongaTable(
+                    $currentTable,
+                    $sumSize
+                );
+                break;
             default:
                 // Unknown table type.
                 if ($this->isShowStats) {
@@ -1183,6 +1189,59 @@ class StructureController extends AbstractController
                 $tblsize,
                 3,
                 ($tblsize > 0 ? 1 : 0)
+            );
+        }
+
+        return [
+            $currentTable,
+            $formattedSize,
+            $unit,
+            $sumSize,
+        ];
+    }
+
+    /**
+     * Get values for Mroonga table
+     *
+     * @param array $currentTable current table
+     * @param int   $sumSize      sum size
+     *
+     * @return array
+     */
+    protected function getValuesForMroongaTable(
+        array $currentTable,
+        $sumSize
+    ) {
+        $formattedSize = $unit = '';
+
+        $this->dbi->selectDb($currentTable["Db"]);
+        if(!isset($this->__object_list)) {
+            $this->__object_list = [];
+        }
+        if(!isset($this->__object_list[$currentTable["Db"]])) {
+            $result = $this->dbi->query("SELECT mroonga_command('object_list')");
+            $row = $this->dbi->fetchRow($result);
+            $this->dbi->freeResult($result);
+            $this->__object_list[$currentTable["Db"]] = json_decode($row[0],true);
+        }
+
+        if ($this->isShowStats) {
+            /** @var int $tblsize */
+            $tblsize = 0;
+            foreach ($this->__object_list[$currentTable["Db"]] as $key=>$val) {
+                if(strncmp($currentTable["Name"],$key,strlen($currentTable["Name"]))==0) {
+                    $result = $this->dbi->query("SELECT mroonga_command('object_inspect ${key}')");
+                    $row = $this->dbi->fetchRow($result);
+                    $this->dbi->freeResult($result);
+                    $temp = json_decode($row[0],true);
+                    $tblsize += $temp["disk_usage"];
+                }
+            }
+            $sumSize += $tblsize;
+            [$formattedSize, $unit] = Util::formatByteDown(
+                $tblsize,
+                3,
+                $tblsize > 0 ? 1 : 0
             );
         }
 
