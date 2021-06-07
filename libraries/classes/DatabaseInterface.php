@@ -400,6 +400,40 @@ class DatabaseInterface implements DbalInterface
                 $link
             );
 
+            // here, we check for Mroonga engine and compute the good data_length and index_length
+            // in the StructureController only we need to sum the two values as the other engines
+            foreach($tables[$database] as $key => $val) {
+                if($val["Engine"] == "Mroonga") {
+                    $this->selectDb($database);
+                    if(!isset($this->__object_list)) {
+                        $this->__object_list = [];
+                    }
+                    if(!isset($this->__object_list[$database])) {
+                        $result = $this->query("SELECT mroonga_command('object_list')");
+                        $row = $this->fetchRow($result);
+                        $this->freeResult($result);
+                        $this->__object_list[$database] = json_decode($row[0],true);
+                    }
+                    $dataLength = 0;
+                    $indexLength = 0;
+                    foreach ($this->__object_list[$database] as $key2 => $val2) {
+                        if(strncmp($key,$key2,strlen($key))==0) {
+                            $result = $this->query("SELECT mroonga_command('object_inspect ${key2}')");
+                            $row = $this->fetchRow($result);
+                            $this->freeResult($result);
+                            $temp = json_decode($row[0],true);
+                            if(strncmp("${key}#${key}", $key2, strlen("${key}#${key}")) == 0) {
+                                $indexLength += $temp["disk_usage"];
+                            } else {
+                                $dataLength += $temp["disk_usage"];
+                            }
+                        }
+                    }
+                    $tables[$database][$key]["Data_length"] = $dataLength;
+                    $tables[$database][$key]["Index_length"] = $indexLength;
+                }
+            }
+
             if ($sort_by === 'Name' && $GLOBALS['cfg']['NaturalOrder']) {
                 // here, the array's first key is by schema name
                 foreach ($tables as $one_database_name => $one_database_tables) {

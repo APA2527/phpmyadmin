@@ -1214,34 +1214,15 @@ class StructureController extends AbstractController
     ) {
         $formattedSize = $unit = '';
 
-        $this->dbi->selectDb($currentTable["Db"]);
-        if(!isset($this->__object_list)) {
-            $this->__object_list = [];
-        }
-        if(!isset($this->__object_list[$currentTable["Db"]])) {
-            $result = $this->dbi->query("SELECT mroonga_command('object_list')");
-            $row = $this->dbi->fetchRow($result);
-            $this->dbi->freeResult($result);
-            $this->__object_list[$currentTable["Db"]] = json_decode($row[0],true);
-        }
-
         if ($this->isShowStats) {
             /** @var int $tblsize */
-            $tblsize = 0;
-            foreach ($this->__object_list[$currentTable["Db"]] as $key=>$val) {
-                if(strncmp($currentTable["Name"],$key,strlen($currentTable["Name"]))==0) {
-                    $result = $this->dbi->query("SELECT mroonga_command('object_inspect ${key}')");
-                    $row = $this->dbi->fetchRow($result);
-                    $this->dbi->freeResult($result);
-                    $temp = json_decode($row[0],true);
-                    $tblsize += $temp["disk_usage"];
-                }
-            }
+            $tblsize = $currentTable['Data_length']
+                + $currentTable['Index_length'];
             $sumSize += $tblsize;
             [$formattedSize, $unit] = Util::formatByteDown(
                 $tblsize,
                 3,
-                $tblsize > 0 ? 1 : 0
+                ($tblsize > 0 ? 1 : 0)
             );
         }
 
