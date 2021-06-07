@@ -402,35 +402,17 @@ class DatabaseInterface implements DbalInterface
 
             // here, we check for Mroonga engine and compute the good data_length and index_length
             // in the StructureController only we need to sum the two values as the other engines
-            foreach($tables[$database] as $key => $val) {
-                if($val["Engine"] == "Mroonga") {
-                    $this->selectDb($database);
-                    if(!isset($this->__object_list)) {
-                        $this->__object_list = [];
+            foreach ($tables as $one_database_name => $one_database_tables) {
+                foreach($one_database_tables as $one_table_name => $one_table_data) {
+                    if($one_table_data["Engine"] == "Mroonga") {
+                        [
+                            $tables[$one_database_name][$one_table_name]["Data_length"],
+                            $tables[$one_database_name][$one_table_name]["Index_length"]
+                        ] = $this->getMroongaLengths(
+                            $one_database_name,
+                            $one_table_name
+                        );
                     }
-                    if(!isset($this->__object_list[$database])) {
-                        $result = $this->query("SELECT mroonga_command('object_list')");
-                        $row = $this->fetchRow($result);
-                        $this->freeResult($result);
-                        $this->__object_list[$database] = json_decode($row[0],true);
-                    }
-                    $dataLength = 0;
-                    $indexLength = 0;
-                    foreach ($this->__object_list[$database] as $key2 => $val2) {
-                        if(strncmp($key,$key2,strlen($key))==0) {
-                            $result = $this->query("SELECT mroonga_command('object_inspect ${key2}')");
-                            $row = $this->fetchRow($result);
-                            $this->freeResult($result);
-                            $temp = json_decode($row[0],true);
-                            if(strncmp("${key}#${key}", $key2, strlen("${key}#${key}")) == 0) {
-                                $indexLength += $temp["disk_usage"];
-                            } else {
-                                $dataLength += $temp["disk_usage"];
-                            }
-                        }
-                    }
-                    $tables[$database][$key]["Data_length"] = $dataLength;
-                    $tables[$database][$key]["Index_length"] = $indexLength;
                 }
             }
 
@@ -524,6 +506,20 @@ class DatabaseInterface implements DbalInterface
 
                 $each_tables = $this->fetchResult($sql, 'Name', null, $link);
 
+                // here, we check for Mroonga engine and compute the good data_length and index_length
+                // in the StructureController only we need to sum the two values as the other engines
+                foreach($each_tables as $table_name => $table_data) {
+                    if($table_data["Engine"] == "Mroonga") {
+                        [
+                            $each_tables[$table_name]["Data_length"],
+                            $each_tables[$table_name]["Index_length"]
+                        ] = $this->getMroongaLengths(
+                            $each_database,
+                            $table_name
+                        );
+                    }
+                }
+
                 // Sort naturally if the config allows it and we're sorting
                 // the Name column.
                 if ($sort_by === 'Name' && $GLOBALS['cfg']['NaturalOrder']) {
@@ -592,6 +588,39 @@ class DatabaseInterface implements DbalInterface
         }
 
         return $tables;
+    }
+
+    /**
+     * Get the lengths of a table of database
+     *
+     * @param string $db_name    DB name
+     * @param string $table_name Table name
+     */
+    private function getMroongaLengths(string $db_name, string $table_name) {
+        static $object_list=[];
+        $this->selectDb($db_name);
+        if(!isset($object_list[$db_name])) {
+            $result = $this->query("SELECT mroonga_command('object_list')");
+            $row = $this->fetchRow($result);
+            $this->freeResult($result);
+            $object_list[$db_name] = json_decode($row[0],true);
+        }
+        $dataLength = 0;
+        $indexLength = 0;
+        foreach ($object_list[$db_name] as $mroonga_name => $mroonga_data) {
+            if(strncmp($table_name, $mroonga_name, strlen($table_name))==0) {
+                $result = $this->query("SELECT mroonga_command('object_inspect ${mroonga_name}')");
+                $row = $this->fetchRow($result);
+                $this->freeResult($result);
+                $temp = json_decode($row[0],true);
+                if(strncmp("${table_name}#${table_name}", $mroonga_name, strlen("${table_name}#${table_name}")) == 0) {
+                    $indexLength += $temp["disk_usage"];
+                } else {
+                    $dataLength += $temp["disk_usage"];
+                }
+            }
+        }
+        return [$dataLength,$indexLength];
     }
 
     /**
