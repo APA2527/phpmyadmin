@@ -36,6 +36,7 @@ use function count;
 use function defined;
 use function explode;
 use function implode;
+use function in_array;
 use function is_array;
 use function is_int;
 use function is_string;
@@ -405,7 +406,7 @@ class DatabaseInterface implements DbalInterface
             // in the StructureController only we need to sum the two values as the other engines
             foreach ($tables as $one_database_name => $one_database_tables) {
                 foreach ($one_database_tables as $one_table_name => $one_table_data) {
-                    if ($one_table_data['Engine'] !== 'Mroonga') {
+                    if ($one_table_data['Engine'] !== 'Mroonga' || ! $this->hasMroongaEngine()) {
                         continue;
                     }
 
@@ -512,7 +513,7 @@ class DatabaseInterface implements DbalInterface
                 // here, we check for Mroonga engine and compute the good data_length and index_length
                 // in the StructureController only we need to sum the two values as the other engines
                 foreach ($each_tables as $table_name => $table_data) {
-                    if ($table_data['Engine'] !== 'Mroonga') {
+                    if ($table_data['Engine'] !== 'Mroonga' || ! $this->hasMroongaEngine()) {
                         continue;
                     }
 
@@ -596,6 +597,29 @@ class DatabaseInterface implements DbalInterface
     }
 
     /**
+     * Returns if Mroonga is available to be used
+     *
+     * This is public to be used in the StructureComtroller
+     *
+     * @return int
+     */
+    public function hasMroongaEngine(): bool
+    {
+        static $bool = null;
+
+        if ($bool === null) {
+            $engines = StorageEngine::getStorageEngines();
+            // how I don't know if engines can use uppercase or lowercase,
+            // I prefer to construct a lowercase array from the keys
+            $engines = array_keys($engines);
+            $engines = array_map('strtolower', $engines);
+            $bool = in_array('mroonga', $engines);
+        }
+
+        return $bool;
+    }
+
+    /**
      * Get the lengths of a table of database
      *
      * @param string $db_name    DB name
@@ -631,6 +655,7 @@ class DatabaseInterface implements DbalInterface
                 $indexLength += $temp['disk_usage'];
                 continue;
             }
+
             $dataLength += $temp['disk_usage'];
         }
 

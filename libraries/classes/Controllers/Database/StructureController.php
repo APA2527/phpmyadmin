@@ -1055,11 +1055,16 @@ class StructureController extends AbstractController
                 // possibly a view, do nothing
                 break;
             case 'Mroonga':
-                [$currentTable, $formattedSize, $unit, $sumSize] = $this->getValuesForMroongaTable(
-                    $currentTable,
-                    $sumSize
-                );
-                break;
+                // The idea is to show the size only if Mroonga is available,
+                // in other case the old unknown message will appear
+                if ($this->dbi->hasMroongaEngine()) {
+                    [$currentTable, $formattedSize, $unit, $sumSize] = $this->getValuesForMroongaTable(
+                        $currentTable,
+                        $sumSize
+                    );
+                    break;
+                }
+                // no break
             default:
                 // Unknown table type.
                 if ($this->isShowStats) {
