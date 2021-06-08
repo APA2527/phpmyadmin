@@ -39,6 +39,7 @@ use function implode;
 use function is_array;
 use function is_int;
 use function is_string;
+use function json_decode;
 use function mb_strtolower;
 use function microtime;
 use function openlog;
@@ -403,16 +404,18 @@ class DatabaseInterface implements DbalInterface
             // here, we check for Mroonga engine and compute the good data_length and index_length
             // in the StructureController only we need to sum the two values as the other engines
             foreach ($tables as $one_database_name => $one_database_tables) {
-                foreach($one_database_tables as $one_table_name => $one_table_data) {
-                    if($one_table_data["Engine"] == "Mroonga") {
-                        [
-                            $tables[$one_database_name][$one_table_name]["Data_length"],
-                            $tables[$one_database_name][$one_table_name]["Index_length"]
-                        ] = $this->getMroongaLengths(
-                            $one_database_name,
-                            $one_table_name
-                        );
+                foreach ($one_database_tables as $one_table_name => $one_table_data) {
+                    if ($one_table_data['Engine'] != 'Mroonga') {
+                        continue;
                     }
+
+                    [
+                        $tables[$one_database_name][$one_table_name]['Data_length'],
+                        $tables[$one_database_name][$one_table_name]['Index_length'],
+                    ] = $this->getMroongaLengths(
+                        $one_database_name,
+                        $one_table_name,
+                    );
                 }
             }
 
@@ -508,16 +511,18 @@ class DatabaseInterface implements DbalInterface
 
                 // here, we check for Mroonga engine and compute the good data_length and index_length
                 // in the StructureController only we need to sum the two values as the other engines
-                foreach($each_tables as $table_name => $table_data) {
-                    if($table_data["Engine"] == "Mroonga") {
-                        [
-                            $each_tables[$table_name]["Data_length"],
-                            $each_tables[$table_name]["Index_length"]
-                        ] = $this->getMroongaLengths(
-                            $each_database,
-                            $table_name
-                        );
+                foreach ($each_tables as $table_name => $table_data) {
+                    if ($table_data['Engine'] != 'Mroonga') {
+                        continue;
                     }
+
+                    [
+                        $each_tables[$table_name]['Data_length'],
+                        $each_tables[$table_name]['Index_length'],
+                    ] = $this->getMroongaLengths(
+                        $each_database,
+                        $table_name,
+                    );
                 }
 
                 // Sort naturally if the config allows it and we're sorting
@@ -595,32 +600,40 @@ class DatabaseInterface implements DbalInterface
      *
      * @param string $db_name    DB name
      * @param string $table_name Table name
+     *
+     * @return int[]
      */
-    private function getMroongaLengths(string $db_name, string $table_name) {
-        static $object_list=[];
+    private function getMroongaLengths(string $db_name, string $table_name): array
+    {
+        static $object_list = [];
         $this->selectDb($db_name);
-        if(!isset($object_list[$db_name])) {
+        if (! isset($object_list[$db_name])) {
             $result = $this->query("SELECT mroonga_command('object_list')");
             $row = $this->fetchRow($result);
             $this->freeResult($result);
-            $object_list[$db_name] = json_decode($row[0],true);
+            $object_list[$db_name] = json_decode($row[0], true);
         }
+
         $dataLength = 0;
         $indexLength = 0;
         foreach ($object_list[$db_name] as $mroonga_name => $mroonga_data) {
-            if(strncmp($table_name, $mroonga_name, strlen($table_name))==0) {
-                $result = $this->query("SELECT mroonga_command('object_inspect ${mroonga_name}')");
-                $row = $this->fetchRow($result);
-                $this->freeResult($result);
-                $temp = json_decode($row[0],true);
-                if(strncmp("${table_name}#${table_name}", $mroonga_name, strlen("${table_name}#${table_name}")) == 0) {
-                    $indexLength += $temp["disk_usage"];
-                } else {
-                    $dataLength += $temp["disk_usage"];
-                }
+            if (strncmp($table_name, $mroonga_name, strlen($table_name)) != 0) {
+                continue;
+            }
+
+            $result = $this->query("SELECT mroonga_command('object_inspect " . $mroonga_name . "')");
+            $row = $this->fetchRow($result);
+            $this->freeResult($result);
+            $temp = json_decode($row[0], true);
+            $index_prefix = $table_name . '#' . $table_name;
+            if (strncmp($index_prefix, $mroonga_name, strlen($index_prefix)) == 0) {
+                $indexLength += $temp['disk_usage'];
+            } else {
+                $dataLength += $temp['disk_usage'];
             }
         }
-        return [$dataLength,$indexLength];
+
+        return [$dataLength, $indexLength];
     }
 
     /**

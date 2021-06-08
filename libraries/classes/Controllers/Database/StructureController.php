@@ -1210,8 +1210,8 @@ class StructureController extends AbstractController
      */
     protected function getValuesForMroongaTable(
         array $currentTable,
-        $sumSize
-    ) {
+        int $sumSize
+    ): array {
         $formattedSize = $unit = '';
 
         if ($this->isShowStats) {
