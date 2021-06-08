@@ -405,7 +405,7 @@ class DatabaseInterface implements DbalInterface
             // in the StructureController only we need to sum the two values as the other engines
             foreach ($tables as $one_database_name => $one_database_tables) {
                 foreach ($one_database_tables as $one_table_name => $one_table_data) {
-                    if ($one_table_data['Engine'] != 'Mroonga') {
+                    if ($one_table_data['Engine'] !== 'Mroonga') {
                         continue;
                     }
 
@@ -512,7 +512,7 @@ class DatabaseInterface implements DbalInterface
                 // here, we check for Mroonga engine and compute the good data_length and index_length
                 // in the StructureController only we need to sum the two values as the other engines
                 foreach ($each_tables as $table_name => $table_data) {
-                    if ($table_data['Engine'] != 'Mroonga') {
+                    if ($table_data['Engine'] !== 'Mroonga') {
                         continue;
                     }
 
@@ -606,6 +606,7 @@ class DatabaseInterface implements DbalInterface
     private function getMroongaLengths(string $db_name, string $table_name): array
     {
         static $object_list = [];
+
         $this->selectDb($db_name);
         if (! isset($object_list[$db_name])) {
             $result = $this->query("SELECT mroonga_command('object_list')");
@@ -617,7 +618,7 @@ class DatabaseInterface implements DbalInterface
         $dataLength = 0;
         $indexLength = 0;
         foreach ($object_list[$db_name] as $mroonga_name => $mroonga_data) {
-            if (strncmp($table_name, $mroonga_name, strlen($table_name)) != 0) {
+            if (strncmp($table_name, $mroonga_name, strlen($table_name)) !== 0) {
                 continue;
             }
 
@@ -626,11 +627,11 @@ class DatabaseInterface implements DbalInterface
             $this->freeResult($result);
             $temp = json_decode($row[0], true);
             $index_prefix = $table_name . '#' . $table_name;
-            if (strncmp($index_prefix, $mroonga_name, strlen($index_prefix)) == 0) {
+            if (strncmp($index_prefix, $mroonga_name, strlen($index_prefix)) === 0) {
                 $indexLength += $temp['disk_usage'];
-            } else {
-                $dataLength += $temp['disk_usage'];
+                continue;
             }
+            $dataLength += $temp['disk_usage'];
         }
 
         return [$dataLength, $indexLength];

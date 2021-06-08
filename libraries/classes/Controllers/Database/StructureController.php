@@ -1212,7 +1212,8 @@ class StructureController extends AbstractController
         array $currentTable,
         int $sumSize
     ): array {
-        $formattedSize = $unit = '';
+        $formattedSize = '';
+        $unit = '';
 
         if ($this->isShowStats) {
             /** @var int $tblsize */
